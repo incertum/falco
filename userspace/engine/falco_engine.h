@@ -34,6 +34,7 @@ limitations under the License.
 #include "stats_manager.h"
 #include "falco_common.h"
 #include "falco_source.h"
+#include "falco_load_result.h"
 
 //
 // This class acts as the primary interface between a program and the
@@ -69,6 +70,11 @@ public:
 	//
 	void load_rules_file(const std::string &rules_filename, bool verbose, bool all_events, uint64_t &required_engine_version);
 	void load_rules(const std::string &rules_content, bool verbose, bool all_events, uint64_t &required_engine_version);
+
+	// Identical to above, but returns a result object instead of
+	// throwing exceptions on error.
+	std::unique_ptr<falco_load_result> load_rules_file(const std::string &rules_filename, bool verbose);
+	std::unique_ptr<falco_load_result> load_rules(const std::string &rules_content, const std::string &name, bool verbose);
 
 	//
 	// Enable/Disable any rules matching the provided substring.
