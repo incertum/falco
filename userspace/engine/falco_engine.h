@@ -44,6 +44,38 @@ limitations under the License.
 class falco_engine
 {
 public:
+
+	// Represents the result of loading a rules file.
+	class load_result {
+		enum error_code {
+			FE_LOAD_ERR_FILE_READ,
+			FE_LOAD_ERR_YAML_PARSE,
+			FE_LOAD_ERR_YAML_VALIDATE,
+			FE_LOAD_ERR_COMPILE_CONDITION,
+			FE_LOAD_ERR_COMPILE_OUTPUT,
+			FE_LOAD_ERR_VALIDATE
+		};
+
+		enum warning_code {
+			FE_LOAD_UNKNOWN_SOURCE,
+			FE_LOAD_UNSAFE_NA_CHECK,
+			FE_LOAD_NO_EVTTYPE,
+			FE_LOAD_UNKNOWN_FIELD,
+			FE_LOAD_UNUSED_MACRO,
+			FE_LOAD_UNUSED_LIST,
+			FE_LOAD_UNKNOWN_ITEM,
+			FE_LOAD_UNKNOWN_WARNING
+		};
+
+		virtual bool successful() = 0;
+
+		virtual uint64_t required_engine_version() = 0;
+
+		virtual std::string as_string(bool single_line = false) = 0;
+
+		// XXX/mstemm add as_json()
+	};
+
 	falco_engine(bool seed_rng=true);
 	virtual ~falco_engine();
 
@@ -69,6 +101,11 @@ public:
 	//
 	void load_rules_file(const std::string &rules_filename, bool verbose, bool all_events, uint64_t &required_engine_version);
 	void load_rules(const std::string &rules_content, bool verbose, bool all_events, uint64_t &required_engine_version);
+
+	// Identical to above, but returns a result object instead of
+	// throwing exceptions on error.
+	std::unique_ptr<load_result> load_rules_file(const std::string &rules_filename);
+	std::unique_ptr<load_result> load_rules(const std::string &rules_content, const std::string &name);
 
 	//
 	// Enable/Disable any rules matching the provided substring.
@@ -188,7 +225,7 @@ public:
 	std::size_t add_source(const std::string &source,
 			       std::shared_ptr<gen_event_filter_factory> filter_factory,
 			       std::shared_ptr<gen_event_formatter_factory> formatter_factory);
-	
+
 	//
 	// Equivalent to above, but allows specifying a ruleset factory
 	// for the newly added source.

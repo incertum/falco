@@ -18,6 +18,7 @@ limitations under the License.
 #include <unistd.h>
 #include <string>
 #include <fstream>
+#include <utility>
 
 #include <sinsp.h>
 #include <plugin.h>
@@ -172,48 +173,48 @@ void falco_engine::load_rules(const string &rules_content, bool verbose, bool al
 
 void falco_engine::load_rules(const string &rules_content, bool verbose, bool all_events, uint64_t &required_engine_version)
 {
-	rule_loader::configuration cfg(rules_content, m_sources);
+	static const std::string no_name = "N/A";
+
+	std::unique_ptr<load_result> res = load_rules(rules_content, no_name);
+
+	std::string resstr = "When reading rules content: " + res->as_string();
+
+	if(verbose)
+	{
+		// todo(jasondellaluce): introduce a logging callback in Falco
+		fprintf(stderr, "%s", resstr.c_str());
+	}
+
+	if(res->successful())
+	{
+		required_engine_version = res->required_engine_version;
+	}
+	else
+	{
+		throw falco_exception(resstr);
+	}
+}
+
+std::unique_ptr<load_result> falco_engine::load_rules(const std::string &rules_content, const std::string &name)
+{
+	rule_loader::configuration cfg(rules_content, m_sources, name);
 	cfg.min_priority = m_min_priority;
 	cfg.output_extra = m_extra;
 	cfg.replace_output_container_info = m_replace_container_info;
 	cfg.default_ruleset_id = m_default_ruleset_id;
 
-	std::ostringstream os;
 	rule_reader reader;
-	bool success = reader.load(cfg, m_rule_loader);
-	if (success)
+	if (reader.load(cfg, m_rule_loader))
 	{
 		for (auto &src : m_sources)
 		{
 			src.ruleset = src.ruleset_factory->new_ruleset();
 		}
 		m_rules.clear();
-		success = m_rule_loader.compile(cfg, m_rules);
+		return m_rule_loader.compile(cfg, m_rules);
 	}
-	if (!cfg.errors.empty())
-	{
-		os << cfg.errors.size() << " errors:" << std::endl;
-		for(auto &err : cfg.errors)
-		{
-			os << err << std::endl;
-		}
-	}
-	if (!cfg.warnings.empty())
-	{
-		os << cfg.warnings.size() << " warnings:" << std::endl;
-		for(auto &warn : cfg.warnings)
-		{
-			os << warn << std::endl;
-		}
-	}
-	if(!success)
-	{
-		throw falco_exception(os.str());
-	}
-	if (verbose && os.str() != "") {
-		// todo(jasondellaluce): introduce a logging callback in Falco
-		fprintf(stderr, "When reading rules content: %s", os.str().c_str());
-	}
+
+	return std::move(cfg.res);
 }
 
 void falco_engine::load_rules_file(const string &rules_filename, bool verbose, bool all_events)
@@ -225,20 +226,47 @@ void falco_engine::load_rules_file(const string &rules_filename, bool verbose, b
 
 void falco_engine::load_rules_file(const string &rules_filename, bool verbose, bool all_events, uint64_t &required_engine_version)
 {
+	rule_loader::result res;
+
+	bool success = load_rules_file(rules_filename, res);
+
+	std::string resstr = "When reading rules content: " + res.as_string();
+
+	if(verbose)
+	{
+		// todo(jasondellaluce): introduce a logging callback in Falco
+		fprintf(stderr, "%s", resstr.c_str());
+	}
+
+	if(success)
+	{
+		required_engine_version = res.required_engine_version;
+	}
+	else
+	{
+		throw falco_exception(resstr);
+	}
+}
+
+bool falco_engine::load_rules_file(const std::string &rules_filename, rule_loader::result &result)
+{
 	ifstream is;
 
 	is.open(rules_filename);
 	if (!is.is_open())
 	{
-		throw falco_exception("Could not open rules filename " +
-				      rules_filename + " " +
-				      "for reading");
+		rule_loader::context ctx;
+
+		result.name = rules_filename;
+		result.add_error(rule_loader::error::FE_LOAD_ERR_FILE_READ, "Could not open for reading", ctx);
+		return false;
 	}
 
 	string rules_content((istreambuf_iterator<char>(is)),
 			     istreambuf_iterator<char>());
 
-	load_rules(rules_content, verbose, all_events, required_engine_version);
+	return load_rules(rules_content, rules_filename, result);
+
 }
 
 void falco_engine::enable_rule(const string &substring, bool enabled, const string &ruleset)
@@ -339,7 +367,7 @@ unique_ptr<falco_engine::rule_result> falco_engine::process_event(std::size_t so
 	{
 		return unique_ptr<struct rule_result>();
 	}
-	
+
 	unique_ptr<struct rule_result> res(new rule_result());
 	res->evt = ev;
 	res->rule = rule.name;
@@ -441,8 +469,8 @@ bool falco_engine::check_plugin_requirements(
 					if (!plugin_version.check(req_version))
 					{
 						err = "Plugin '" + plugin.name
-						+ "' version '" + plugin.version 
-						+ "' is not compatible with required plugin version '" 
+						+ "' version '" + plugin.version
+						+ "' is not compatible with required plugin version '"
 						+ reqver + "'";
 						return false;
 					}

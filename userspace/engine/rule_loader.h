@@ -31,34 +31,77 @@ limitations under the License.
 class rule_loader
 {
 public:
-	/*!
-		\brief Represents a section of text from which a certain info
-		struct has been decoded
-	*/
-	struct context
+	class context
 	{
-		std::string content;
+	public:
+		context();
+		context(const YAML::Node& item, const context& parent);
+		virtual ~context() = default;
+	private:
+		// A chain of locations up to the document root.
+		std::list<YAML::Mark> m_marks;
+	};
 
-		/*!
-			\brief Wraps an error by adding info about the text section
-		*/
-		inline std::string error(std::string err) const
-		{
-			std::string cnt = content;
-			err += "\n---\n";
-			err += trim(cnt);
-			err += "\n---";
-			return err;
-		}
+	struct warning
+	{
+		static const std::string code_strings[];
 
-		/*!
-			\brief Appends another text section info to this one
-		*/
-		inline void append(context& m)
-		{
-			content += "\n\n";
-			content += m.content;
-		}
+		std::string as_string(bool single_line);
+
+		falco_engine::load_result::warning_code wc;
+		std::string msg;
+		context ctx;
+	};
+
+	struct error
+	{
+		static const std::string code_strings[];
+
+		std::string as_string(bool single_line);
+
+		falco_engine::load_result::error_code ec;
+		std::string msg;
+		context ctx;
+	};
+
+	class rule_load_exception : public std::exception {
+	public:
+		rule_load_exception(error::code ec, std::string msg, const context& ctx);
+		virtual ~rule_load_exception();
+		const char* what();
+
+		error::code ec;
+		std::string msg;
+		context ctx;
+
+		std::string errstr;
+	};
+
+	/*!
+		\brief Contains the result of loading rule definitions
+	*/
+	class result : public falco_engine::load_result
+	{
+	public:
+		result(const std::string &name);
+		virtual ~result() = default;
+
+		virtual bool successful() override;
+		virtual uint64_t required_engine_version() override;
+		virtual std::string as_string(bool single_line = false) override;
+
+		void add_error(error::code ec, const char *msg, const context& ctx);
+		void add_error(error::code ec, const std::string& msg, const context& ctx);
+		void add_warning(warning::code ec, const std::string& msg, const context& ctx);
+		void add_warning(warning::code ec, const char *msg, const context& ctx);
+
+	protected:
+		std::string name;
+		uint64_t required_engine_version;
+		bool success;
+
+		std::vector<error> errors;
+		std::vector<warning> warnings;
 	};
 
 	/*!
@@ -66,15 +109,20 @@ public:
 	*/
 	struct configuration
 	{
+		// The result is a reference so it can be externally provided.
 		explicit configuration(
 			const std::string& cont,
-			const indexed_vector<falco_source>& srcs)
-				: content(cont), sources(srcs) {}
+			const indexed_vector<falco_source>& srcs,
+			std::string name)
+				: content(cont), sources(srcs), name(name)
+			{
+				res.reset(new result(name));
+			}
 
 		const std::string& content;
 		const indexed_vector<falco_source>& sources;
-		std::vector<std::string> errors;
-		std::vector<std::string> warnings;
+		std::string name;
+		std::unique_ptr<result> res;
 		std::string output_extra;
 		uint16_t default_ruleset_id;
 		bool replace_output_container_info;
@@ -86,6 +134,7 @@ public:
 	*/
 	struct engine_version_info
 	{
+		context ctx;
 		uint32_t version;
 	};
 
@@ -94,12 +143,13 @@ public:
 	*/
 	struct plugin_version_info
 	{
+		context ctx;
 		std::string name;
 		std::string version;
 	};
 
 	/*!
-		\brief Represents infos about a list 
+		\brief Represents infos about a list
 	*/
 	struct list_info
 	{
@@ -112,7 +162,7 @@ public:
 	};
 
 	/*!
-		\brief Represents infos about a macro 
+		\brief Represents infos about a macro
 	*/
 	struct macro_info
 	{
@@ -149,6 +199,7 @@ public:
 			}
 		};
 
+		context ctx;
 		std::string name;
 		entry fields;
 		entry comps;
@@ -156,7 +207,7 @@ public:
 	};
 
 	/*!
-		\brief Represents infos about a rule 
+		\brief Represents infos about a rule
 	*/
 	struct rule_info
 	{
@@ -171,6 +222,7 @@ public:
 		std::set<std::string> tags;
 		std::vector<rule_exception_info> exceptions;
 		falco_common::priority_type priority;
+		bool append;
 		bool enabled;
 		bool warn_evttypes;
 		bool skip_if_unknown_filter;
@@ -199,6 +251,7 @@ public:
 		in the internal state (e.g. another rule with same name), then
 		the previous definition gets overwritten
 	*/
+
 	virtual void define(configuration& cfg, engine_version_info& info);
 	virtual void define(configuration& cfg, plugin_version_info& info);
 	virtual void define(configuration& cfg, list_info& info);
@@ -218,12 +271,11 @@ public:
 		\brief Updates the 'enabled' flag of an existing definition
 	*/
 	virtual void enable(configuration& cfg, rule_info& info);
-
 private:
 	void compile_list_infos(
 		configuration& cfg,
 		indexed_vector<list_info>& out) const;
-	void compile_macros_infos(
+        void compile_macros_infos(
 		configuration& cfg,
 		indexed_vector<list_info>& lists,
 		indexed_vector<macro_info>& out) const;
