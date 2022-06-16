@@ -22,6 +22,7 @@ limitations under the License.
 #include <yaml-cpp/yaml.h>
 #include "falco_rule.h"
 #include "falco_source.h"
+#include "falco_load_result.h"
 #include "indexed_vector.h"
 
 
@@ -31,34 +32,85 @@ limitations under the License.
 class rule_loader
 {
 public:
-	/*!
-		\brief Represents a section of text from which a certain info
-		struct has been decoded
-	*/
-	struct context
+	class context
 	{
-		std::string content;
+	public:
+		context();
+		context(const YAML::Node& item, const context& parent);
+		virtual ~context() = default;
+	private:
+		// A chain of locations up to the document root.
+		std::list<YAML::Mark> m_marks;
+	};
 
-		/*!
-			\brief Wraps an error by adding info about the text section
-		*/
-		inline std::string error(std::string err) const
-		{
-			std::string cnt = content;
-			err += "\n---\n";
-			err += trim(cnt);
-			err += "\n---";
-			return err;
-		}
+	struct warning
+	{
+		falco_load_result::warning_code wc;
+		std::string msg;
+		context ctx;
+	};
 
-		/*!
-			\brief Appends another text section info to this one
-		*/
-		inline void append(context& m)
-		{
-			content += "\n\n";
-			content += m.content;
-		}
+	struct error
+	{
+		falco_load_result::error_code ec;
+		std::string msg;
+		context ctx;
+	};
+
+	class rule_load_exception : public std::exception {
+	public:
+		rule_load_exception(falco_load_result::error_code ec, std::string msg, const context& ctx);
+		virtual ~rule_load_exception();
+		const char* what();
+
+		falco_load_result::error_code ec;
+		std::string msg;
+		context ctx;
+
+		std::string errstr;
+	};
+
+	/*!
+		\brief Contains the result of loading rule definitions
+	*/
+	class result : public falco_load_result
+	{
+	public:
+		result(const std::string &name);
+		virtual ~result() = default;
+
+		virtual bool successful() override;
+		virtual uint64_t required_engine_version() override;
+		virtual const std::string& as_summary() override;
+		virtual const std::string& as_string() override;
+		virtual const std::string& as_json() override;
+
+		void add_error(falco_load_result::error_code ec, const char *msg, const context& ctx);
+		void add_error(falco_load_result::error_code ec, const std::string& msg, const context& ctx);
+		void add_warning(falco_load_result::warning_code ec, const std::string& msg, const context& ctx);
+		void add_warning(falco_load_result::warning_code ec, const char *msg, const context& ctx);
+
+		// Build summary/string/json representations of the
+		// result, using the provided rules content to provide
+		// context blocks.
+		void build(const std::string &rules_content, bool verbose);
+
+	protected:
+
+		void build_summary(const std::string &rules_content, bool verbose);
+		void build_string(const std::string &rules_content, bool verbose);
+		void build_json(const std::string &rules_content, bool verbose);
+
+		std::string name;
+		uint64_t required_engine_ver;
+		bool success;
+
+		std::vector<error> errors;
+		std::vector<warning> warnings;
+
+		std::string res_summary;
+		std::string res_string;
+		std::string res_json;
 	};
 
 	/*!
@@ -66,15 +118,22 @@ public:
 	*/
 	struct configuration
 	{
+		// The result is a reference so it can be externally provided.
 		explicit configuration(
 			const std::string& cont,
-			const indexed_vector<falco_source>& srcs)
-				: content(cont), sources(srcs) {}
+			const indexed_vector<falco_source>& srcs,
+			std::string name,
+			bool verbose)
+				: content(cont), sources(srcs), name(name), verbose(verbose)
+			{
+				res.reset(new result(name));
+			}
 
 		const std::string& content;
 		const indexed_vector<falco_source>& sources;
-		std::vector<std::string> errors;
-		std::vector<std::string> warnings;
+		std::string name;
+		bool verbose;
+		std::unique_ptr<result> res;
 		std::string output_extra;
 		uint16_t default_ruleset_id;
 		bool replace_output_container_info;
@@ -86,6 +145,7 @@ public:
 	*/
 	struct engine_version_info
 	{
+		context ctx;
 		uint32_t version;
 	};
 
@@ -94,6 +154,7 @@ public:
 	*/
 	struct plugin_version_info
 	{
+		context ctx;
 		std::string name;
 		std::string version;
 	};
@@ -149,6 +210,7 @@ public:
 			}
 		};
 
+		context ctx;
 		std::string name;
 		entry fields;
 		entry comps;
@@ -171,6 +233,7 @@ public:
 		std::set<std::string> tags;
 		std::vector<rule_exception_info> exceptions;
 		falco_common::priority_type priority;
+		bool append;
 		bool enabled;
 		bool warn_evttypes;
 		bool skip_if_unknown_filter;
@@ -186,7 +249,7 @@ public:
 	/*!
 		\brief Uses the internal state to compile a list of falco_rules
 	*/
-	virtual bool compile(configuration& cfg, indexed_vector<falco_rule>& out) const;
+	virtual void compile(configuration& cfg, indexed_vector<falco_rule>& out) const;
 
 	/*!
 		\brief Returns the set of all required versions for each plugin according
