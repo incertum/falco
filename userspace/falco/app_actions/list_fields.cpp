@@ -36,7 +36,8 @@ application::run_result application::list_fields()
 	if(m_options.list_syscall_events)
 	{
 		// We know this function doesn't hold into the raw pointer value
-		list_events(m_state->inspector.get(), m_options.markdown);
+		std::unique_ptr<sinsp> inspector(new sinsp());
+		list_events(inspector.get(), m_options.markdown);
 		return run_result::exit();
 	}
 

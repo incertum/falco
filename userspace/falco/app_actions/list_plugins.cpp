@@ -24,14 +24,18 @@ application::run_result application::list_plugins()
 	if(m_options.list_plugins)
 	{
 		std::ostringstream os;
-		const auto &plugins = m_state->inspector->get_plugin_manager()->plugins();
-		for (auto &p : plugins)
+		uint32_t count = 0;
+		std::unique_ptr<sinsp> inspector(new sinsp());
+		for (auto &pc : m_state->config->m_plugins)
 		{
+			// load the plugin (no need to initialize it)
+			auto p = inspector->register_plugin(pc.m_library_path);
 			format_plugin_info(p, os);
 			os << std::endl;
+			count++;
 		}
 
-		printf("%lu Plugins Loaded:\n\n%s\n", plugins.size(), os.str().c_str());
+		printf("%lu Plugins Loaded:\n\n%s\n", count, os.str().c_str());
 		return run_result::exit();
 	}
 
