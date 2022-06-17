@@ -19,6 +19,30 @@ limitations under the License.
 
 using namespace falco::app;
 
+// todo: this is complicated. I think this needs to be split in multiple parts
+// 1) load plugins and get all the event sources and add them to the engine
+// 2) create one inspector for each event source and attach all the compatible
+//    extractors to it
+// 3) not sure when to create all the filtercheck lists, maybe during step 2)
+//
+// issue: for scap files, the source index is dictated by the inspector, whereas
+//        for live mode the source index is dictated by Falco (need to match it against the engine idx)
+//           -> there should be a mapping engine src idx -> inspector idx
+
+// plan:
+// 1) load all plugins, populate the event source list and the list of compatible
+//    extraction plugin for each source (throw errors and stuff).
+//    populate list of std::vector<falco_engine::plugin_version_requirement> (maybe bundle them in a struct containing also the compatible extract sources)
+// 2) select/enable/disable event sources (DONE)
+// 3) init inspectors: Create inspectors(1 for capture mode, N for live mode) and cofig them.
+//                     Populate list of filterchecks for each event source (decide which inspector retain them)
+// 4) init_engine: add filtercheck lists for each source
+// 5) list fields: (DONE)
+// 6) ... -> validate sources: use the pre-populated list of :plugin_version_requirement
+// 7) ... -> open inspectors: 1 for capture mode, N for live mode
+// 8) process_events: spawn a thread for each open inspector. Use main thread if capture mode or just 1 live source.
+//                    get rid of close_inspector action, close each inspector in thread and join with all threads (if any).
+// 9) ... -> done
 application::run_result application::load_plugins()
 {
 #ifdef MUSL_OPTIMIZED

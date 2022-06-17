@@ -18,6 +18,7 @@ limitations under the License.
 
 using namespace falco::app;
 
+// todo: this should be done only for the syscall inspector and can be done later
 application::run_result application::init_inspector()
 {
 	m_state->inspector->set_buffer_format(m_options.event_buffer_format);

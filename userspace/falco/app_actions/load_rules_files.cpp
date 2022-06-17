@@ -19,6 +19,7 @@ limitations under the License.
 
 using namespace falco::app;
 
+// todo: this can create an inspector on the fly
 void application::check_for_ignored_events()
 {
 	std::set<uint16_t> evttypes;
@@ -108,6 +109,8 @@ application::run_result application::load_rules_files()
 		m_state->required_engine_versions[filename] = required_engine_version;
 	}
 
+	// todo: this list can be populated earlier when loading all plugins
+	//       and maintained in the Falco state
 	// Ensure that all plugins are compatible with the loaded set of rules
 	std::string plugin_vers_err = "";
 	std::vector<falco_engine::plugin_version_requirement> plugin_reqs;

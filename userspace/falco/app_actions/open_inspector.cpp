@@ -24,6 +24,10 @@ using namespace falco::app;
 
 typedef std::function<void(std::shared_ptr<sinsp> inspector)> open_t;
 
+// todo: this needs to open the inspectors for all sources
+// question: should we open the inspectors in parallel as well? Maybe it's just easier
+// to parallelize the process_events action. It can be worthwhile to open the syscall
+// inspector as the last one to avoid event drops
 application::run_result application::open_inspector()
 {
 	// Notify engine that we finished loading and enabling all rules
@@ -50,6 +54,7 @@ application::run_result application::open_inspector()
 			//
 			// Falco uses a ptrace(2) based userspace implementation.
 			// Regardless of the implementation, the underlying method remains the same.
+			// todo: only for syscall inspector
 			if(m_options.userspace)
 			{
 				m_state->inspector->open_udig();
@@ -61,6 +66,7 @@ application::run_result application::open_inspector()
 		}
 		catch(sinsp_exception &e)
 		{
+			// todo: only for syscall inspector
 			// If syscall input source is enabled and not through userspace instrumentation
 			if (is_syscall_source_enabled() && !m_options.userspace)
 			{
@@ -79,6 +85,7 @@ application::run_result application::open_inspector()
 	}
 
 	// This must be done after the open
+	// todo: only for syscall inspector
 	if(!m_options.all_events)
 	{
 		m_state->inspector->start_dropping_mode(1);

@@ -43,7 +43,7 @@ rules_file:
 # https://github.com/falcosecurity/plugins/blob/master/plugins/cloudtrail/README.md.
 plugins:
   - name: k8saudit
-    library_path: libk8saudit.so
+    library_path: /home/vagrant/dev/falcosecurity/falco/build/k8saudit-plugin-prefix/src/k8saudit-plugin/libk8saudit.so
     init_config:
     #   maxEventSize: 262144
     #   webhookMaxBatchSize: 12582912
@@ -61,7 +61,7 @@ plugins:
 # set a meaningful init_config/open_params for the cloudtrail plugin
 # and then change this to:
 # load_plugins: [cloudtrail, json]
-load_plugins: []
+load_plugins: [k8saudit]
 
 # Watch config file and rules files for modification.
 # When a file is modified, Falco will propagate new config,

@@ -68,18 +68,13 @@ private:
 		std::shared_ptr<falco_configuration> config;
 		std::shared_ptr<falco_outputs> outputs;
 		std::shared_ptr<falco_engine> engine;
-		std::shared_ptr<sinsp> inspector;
+
+		std::shared_ptr<sinsp> capture_mode_inspector;
 		std::set<std::string> enabled_sources;
 
-		// The event source index that correspond to "syscall"
-		std::size_t syscall_source_idx;
-
-		// All filterchecks created by plugins go in this
-		// list. If we ever support multiple event sources at
-		// the same time, this, and the factories created in
-		// init_inspector/load_plugins, will have to be a map
-		// from event source to filtercheck list.
-		std::map<std::string, filter_check_list> plugin_filter_checks;
+		std::map<std::string, std::shared_ptr<sinsp>> source_inspectors;
+		std::map<std::string, filter_check_list> source_filterchecks;
+		std::map<std::string, std::string> source_extraction_plugin_paths;
 
 		std::map<string,uint64_t> required_engine_versions;
 

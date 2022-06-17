@@ -40,6 +40,8 @@ StatsFileWriter::~StatsFileWriter()
 	m_output.close();
 }
 
+// todo: this should work with a queue model I thinl, and we should open one
+// for each inspector
 bool StatsFileWriter::init(std::shared_ptr<sinsp> inspector, string &filename, uint32_t interval_msec, string &errstr)
 {
 	struct itimerval timer;
@@ -67,6 +69,7 @@ bool StatsFileWriter::init(std::shared_ptr<sinsp> inspector, string &filename, u
 		return false;
 	}
 
+	// todo: remove this
 	// (Undocumented) feature. Take any environment keys prefixed
 	// with FALCO_STATS_EXTRA_XXX and add them to the output. Used by
 	// run_performance_tests.sh.
@@ -121,6 +124,7 @@ void StatsFileWriter::handle()
 		{
 			m_output << ", " << m_extra;
 		}
+		// todo: add source name
 		m_output << ", \"cur\": {" <<
 			"\"events\": " << cstats.n_evts <<
 			", \"drops\": " << cstats.n_drops <<

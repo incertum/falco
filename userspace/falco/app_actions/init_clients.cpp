@@ -18,6 +18,7 @@ limitations under the License.
 
 using namespace falco::app;
 
+// todo: this can work by using the "syscall" inspector if present 
 application::run_result application::init_clients()
 {
 #ifndef MINIMAL_BUILD

@@ -348,6 +348,7 @@ unique_ptr<falco_engine::rule_result> falco_engine::process_event(std::size_t so
 	res->priority_num = rule.priority;
 	res->tags = rule.tags;
 	res->exception_fields = rule.exception_fields;
+	// todo: skip this for now because it is not thread safe
 	m_rule_stats_manager.on_event(rule);
 	return res;
 }

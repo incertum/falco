@@ -142,11 +142,12 @@ void falco_outputs::add_output(falco::outputs::config oc)
 void falco_outputs::handle_event(gen_event *evt, string &rule, string &source,
 				 falco_common::priority_type priority, string &format, std::set<std::string> &tags)
 {
-	if(!m_notifications_tb.claim())
-	{
-		falco_logger::log(LOG_DEBUG, "Skipping rate-limited notification for rule " + rule + "\n");
-		return;
-	}
+	// todo: skip this for now because it's not thread safe
+	// if(!m_notifications_tb.claim())
+	// {
+	// 	falco_logger::log(LOG_DEBUG, "Skipping rate-limited notification for rule " + rule + "\n");
+	// 	return;
+	// }
 
 	falco_outputs::ctrl_msg cmsg = {};
 	cmsg.ts = evt->get_ts();

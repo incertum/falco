@@ -33,6 +33,7 @@ limitations under the License.
 
 using namespace falco::app;
 
+// todo: pass inspector as parameter
 //
 // Event processing loop
 //
@@ -50,6 +51,7 @@ application::run_result application::do_inspect(syscall_evt_drop_mgr &sdropmgr,
 
 	num_evts = 0;
 
+	// todo: only for syscall inspector
 	sdropmgr.init(m_state->inspector,
 		      m_state->outputs,
 		      m_state->config->m_syscall_evt_drop_actions,
@@ -58,6 +60,7 @@ application::run_result application::do_inspect(syscall_evt_drop_mgr &sdropmgr,
 		      m_state->config->m_syscall_evt_drop_max_burst,
 		      m_state->config->m_syscall_evt_simulate_drops);
 
+	// todo: skip for now and solve this later
 	if (m_options.stats_filename != "")
 	{
 		string errstr;
@@ -158,6 +161,8 @@ application::run_result application::do_inspect(syscall_evt_drop_mgr &sdropmgr,
 			continue;
 		}
 
+		// todo: if capture mode do this, otherwise the idx is the idx of the
+		// inspector
 		source_idx = m_state->syscall_source_idx;
 		if (ev->get_type() == PPME_PLUGINEVENT_E)
 		{
@@ -190,6 +195,7 @@ application::run_result application::do_inspect(syscall_evt_drop_mgr &sdropmgr,
 
 application::run_result application::process_events()
 {
+	// todo: only for syscalls
 	syscall_evt_drop_mgr sdropmgr;
 	// Used for stats
 	double duration;
@@ -209,6 +215,7 @@ application::run_result application::process_events()
 
 	if(m_options.verbose)
 	{
+		// todo: only for syscalls
 		fprintf(stderr, "Driver Events:%" PRIu64 "\nDriver Drops:%" PRIu64 "\n",
 			cstats.n_evts,
 			cstats.n_drops);
@@ -227,8 +234,13 @@ application::run_result application::process_events()
 		std::this_thread::sleep_for(std::chrono::seconds(m_options.duration_to_tot));
 	}
 
-	m_state->engine->print_stats();
+	// todo: only for syscalls
 	sdropmgr.print_stats();
+
+	// todo: close each inspector here and join with its thread
+
+	// todo: after cosing all inspectors
+	m_state->engine->print_stats();
 
 	return ret;
 }

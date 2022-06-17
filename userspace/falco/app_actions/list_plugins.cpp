@@ -35,7 +35,7 @@ application::run_result application::list_plugins()
 			count++;
 		}
 
-		printf("%lu Plugins Loaded:\n\n%s\n", count, os.str().c_str());
+		printf("%u Plugins Loaded:\n\n%s\n", count, os.str().c_str());
 		return run_result::exit();
 	}
 

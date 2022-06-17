@@ -22,6 +22,7 @@ using namespace falco::app;
 
 application::run_result application::list_fields()
 {
+	// todo: do this after loading plugins
 	if(m_options.list_fields)
 	{
 		if(m_options.list_source_fields != "" &&
