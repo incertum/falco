@@ -157,6 +157,7 @@ private:
 	run_result print_support();
 	run_result print_version();
 	run_result process_events();
+	run_result select_event_sources();
 #ifndef MINIMAL_BUILD
 	run_result start_grpc_server();
 	run_result start_webserver();
