@@ -81,6 +81,11 @@ public:
 	*/
 	void reopen_outputs();
 
+	/*!
+	\brief Return hostname string.
+	*/
+	std::string get_hostname();
+
 private:
 	std::unique_ptr<falco_formats> m_formats;
 

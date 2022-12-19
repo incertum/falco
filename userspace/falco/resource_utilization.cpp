@@ -31,7 +31,8 @@ resource_utilization_mgr::resource_utilization_mgr():
 	m_prev_num_evts(0),
 	m_prev_n_evts(0),
 	m_falco_pid(0),
-	m_falco_start_ts_epoch(0)
+	m_falco_start_ts_epoch(0),
+	m_do_cgroup_memory_lookup(false)
 {
 }
 
@@ -47,13 +48,34 @@ void resource_utilization_mgr::init(std::shared_ptr<sinsp> inspector,
 	m_machine_info = m_inspector->get_machine_info();
 	m_falco_pid = getpid();
 	uname(&m_uts);
-	struct stat dirstat = {0};
-	char dir_name[256];
-	snprintf(dir_name, sizeof(dir_name), "/proc/%d/", m_falco_pid);
-	if(stat(dir_name, &dirstat) == 0)
+	struct stat st = {0};
+	char path[256];
+	snprintf(path, sizeof(path), "/proc/%d/", m_falco_pid);
+	if(stat(path, &st) == 0)
 	{
-		m_falco_start_ts_epoch = dirstat.st_ctim.tv_sec * ONE_SECOND_IN_NS + dirstat.st_ctim.tv_nsec;
+		m_falco_start_ts_epoch = st.st_ctim.tv_sec * ONE_SECOND_IN_NS + st.st_ctim.tv_nsec;
 	}
+	/* Kubernetes tailored path as seen from within Falco deployment container */
+	snprintf(m_cgroups_memory_usage_path, sizeof(m_cgroups_memory_usage_path), "/sys/fs/cgroup/memory/memory.usage_in_bytes");
+	if(stat(m_cgroups_memory_usage_path, &st) == 0)
+	{
+		m_do_cgroup_memory_lookup = true;
+	}
+}
+
+void resource_utilization_mgr::get_falco_container_memory_usage_bytes(uint32_t &cgroup_memory_used_bytes)
+{
+	char line[512];
+	FILE* f = fopen(m_cgroups_memory_usage_path, "r");
+	if(f)
+	{
+		while(fgets(line, sizeof(line), f) != NULL)
+		{
+			sscanf(line, "%" PRIu32, &cgroup_memory_used_bytes);		/* memory size returned in bytes */
+		}
+	}
+	fclose(f);
+
 }
 
 void resource_utilization_mgr::get_falco_current_rss_vsz_memory(uint32_t &rss, uint32_t &vsz)
@@ -96,7 +118,7 @@ void resource_utilization_mgr::get_falco_current_cpu_usage(float &cpu_usage_perc
 		float system_sec = (float) time.tms_stime / clocks_per_second;
 
 		/* CPU usage as percentage is computed by dividing the time the process uses the CPU by the elapsed time of the process. Compare to `ps` linux util. */
-    	cpu_usage_percentage = (user_sec + system_sec) / falco_duration_sec;
+		cpu_usage_percentage = (user_sec + system_sec) / falco_duration_sec;
 		cpu_usage_percentage *= 100.0;
 	}
 
@@ -135,11 +157,12 @@ bool resource_utilization_mgr::process_event(std::shared_ptr<sinsp> inspector, s
 		float falco_duration_sec = (now - m_falco_start_ts_epoch) / (float) ONE_SECOND_IN_NS;
 		get_falco_current_cpu_usage(cpu_usage_percentage, falco_duration_sec);
 
-		/* If applicable retrieve current cgroup CPU and memory usages snapshots - cAdvisor / kube metrics like approach. */
-		uint32_t cgroup_rss = 0;
-		uint32_t cgroup_memory_working_set = 0;
-		float cgroup_cpu_usage_percentage = 0;
-		///TODO Implement
+		/* If applicable retrieve current cgroup memory usages snapshot. Kubernetes use case only. */
+		uint32_t cgroup_memory_used_bytes = 0;
+		if (m_do_cgroup_memory_lookup)
+		{
+			get_falco_container_memory_usage_bytes(cgroup_memory_used_bytes);
+		}
 
 		/* Retrieve stats from sinsp libscap */
 		scap_stats stats;
@@ -150,7 +173,8 @@ bool resource_utilization_mgr::process_event(std::shared_ptr<sinsp> inspector, s
 		output_fields["evt.time"] = std::to_string(now);		/* Current epoch in nanoseconds. */
 		output_fields["machine.n_cpus"] = std::to_string(m_machine_info->num_cpus);		/* Total number of CPUs / processors. */
 		output_fields["machine.boot_time"] = std::to_string(m_machine_info->boot_ts_epoch);		/* Host boot time - epoch in nanoseconds. */
-		output_fields["falco.version"] = FALCO_VERSION;		/* Faclo version. */
+		output_fields["machine.hostname"] = m_outputs->get_hostname();		/* Explicitly add hostname to log msg in case hostname rule output field is disabled. */
+		output_fields["falco.version"] = FALCO_VERSION;		/* Falco version. */
 		output_fields["falco.start_time"] = std::to_string(m_falco_start_ts_epoch);		/* Falco start time - epoch in nanoseconds. */
 		output_fields["falco.duration_sec"] = std::to_string(falco_duration_sec);		/* Number of nanoseconds between Falco start time and now. */
 		output_fields["falco.n_evts"] = std::to_string(num_evts);		/* Monotonic counter number of events Falco has processed. */
@@ -159,9 +183,7 @@ bool resource_utilization_mgr::process_event(std::shared_ptr<sinsp> inspector, s
 		output_fields["falco.linux.cpu_usage_percentage"] = std::to_string(cpu_usage_percentage);		/* Falco CPU usage percentage of one CPU, compare to `ps` linux util */
 		output_fields["falco.linux.memory_rss_bytes"] = std::to_string(rss * 1024);		/* Retrieved from /proc/<pid>/status, RSS - resident set size in bytes, compare to `ps` linux util */
 		output_fields["falco.linux.memory_vsize_bytes"] = std::to_string(vsz * 1024);		/* Retrieved from /proc/<pid>/status, VSZ - virtual size in bytes, compare to `ps` linux util */
-		output_fields["falco.cgroup.cpu_usage_percentage"] = std::to_string(cgroup_cpu_usage_percentage);		/* kube metrics, cAdvisor, kubectl top pods like approach */
-		output_fields["falco.cgroup.memory_rss_bytes"] = std::to_string(cgroup_rss);		/* kube metrics, cAdvisor like approach in bytes*/
-		output_fields["falco.cgroup.memory_working_set_bytes"] = std::to_string(cgroup_memory_working_set);		/* kube metrics, cAdvisor, kubectl top pods like approach in bytes */
+		output_fields["falco.cgroup.memory_usage_in_bytes"] = std::to_string(cgroup_memory_used_bytes);		/* Kubernetes only, container memory usage in bytes. */
 		if(inspector->check_current_engine(BPF_ENGINE))
 		{
 			output_fields["falco.kernel_driver"] = "bpf";		/* Falco kernel driver type. */

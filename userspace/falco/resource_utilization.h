@@ -45,6 +45,8 @@ public:
 
 	void get_falco_current_cpu_usage(float &cpu_usage_percentage, float &falco_duration_sec);
 
+	void get_falco_container_memory_usage_bytes(uint32_t &cgroup_memory_used_bytes);
+
 protected:
 	std::shared_ptr<sinsp> m_inspector;
 	std::shared_ptr<falco_outputs> m_outputs;
@@ -55,5 +57,7 @@ protected:
 	int m_falco_pid;
 	struct utsname m_uts;
 	uint64_t m_falco_start_ts_epoch;
+	bool m_do_cgroup_memory_lookup;
+	char m_cgroups_memory_usage_path[256];
 
 };

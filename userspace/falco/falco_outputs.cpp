@@ -312,3 +312,9 @@ void falco_outputs::worker() noexcept
 		wd.cancel_timeout();
 	} while(cmsg.type != ctrl_msg_type::CTRL_MSG_STOP);
 }
+
+
+std::string falco_outputs::get_hostname()
+{
+	return m_hostname;
+}
