@@ -46,6 +46,7 @@ application::run_result application::do_inspect(
 		const std::string& source, // an empty source represents capture mode
 		std::shared_ptr<stats_writer> statsw,
 		syscall_evt_drop_mgr &sdropmgr,
+		resource_utilization_mgr& resource_util_mgr,
 		bool check_drops_and_timeouts,
 		uint64_t duration_to_tot_ns,
 		uint64_t &num_evts)
@@ -95,6 +96,13 @@ application::run_result application::do_inspect(
 	// Start capture
 	//
 	inspector->start_capture();
+
+	// init resource utilization manager
+	if(true) ///TODO: Setup gates and configs
+	{
+		resource_util_mgr.init(inspector,
+			m_state->outputs);
+	}
 
 	//
 	// Loop through the events
@@ -205,6 +213,12 @@ application::run_result application::do_inspect(
 			return run_result::fatal("Drop manager internal error");
 		}
 
+		///TODO Setup gates and configs
+		if(true && !resource_util_mgr.process_event(inspector, ev, num_evts))
+		{
+			return run_result::fatal("Resource utilization manager internal error");
+		}
+
 		// As the inspector has no filter at its level, all
 		// events are returned here. Pass them to the falco
 		// engine, which will match the event against the set
@@ -242,13 +256,14 @@ void application::process_inspector_events(
 		scap_stats cstats;
 		uint64_t num_evts = 0;
 		syscall_evt_drop_mgr sdropmgr;
+		resource_utilization_mgr resource_util_mgr;
 		bool is_capture_mode = source.empty();
 		bool check_drops_timeouts = is_capture_mode
 			|| (source == falco_common::syscall_source && !is_gvisor_enabled());
 
 		duration = ((double)clock()) / CLOCKS_PER_SEC;
 
-		*res = do_inspect(inspector, source, statsw, sdropmgr, check_drops_timeouts,
+		*res = do_inspect(inspector, source, statsw, sdropmgr, resource_util_mgr, check_drops_timeouts,
 						uint64_t(m_options.duration_to_tot*ONE_SECOND_IN_NS),
 						num_evts);
 

@@ -19,6 +19,7 @@ limitations under the License.
 #include "semaphore.h"
 #include "configuration.h"
 #include "stats_writer.h"
+#include "resource_utilization.h"
 #ifndef MINIMAL_BUILD
 #include "grpc_server.h"
 #include "webserver.h"
@@ -362,6 +363,7 @@ private:
 		const std::string& source, // an empty source represents capture mode
 		std::shared_ptr<stats_writer> statsw,
 		syscall_evt_drop_mgr &sdropmgr,
+		resource_utilization_mgr& resource_util_mgr,
 		bool check_drops_and_timeouts,
 		uint64_t duration_to_tot_ns,
 		uint64_t &num_evts);
